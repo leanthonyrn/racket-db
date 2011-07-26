@@ -1,6 +1,7 @@
 #lang racket
 (require rackunit)
 (require rackunit/text-ui)
+(provide (all-defined-out))
 #|
 A Database is a: 
 (database PathString [hashof Table])
@@ -52,7 +53,16 @@ keys are names of each field
 ;; making/updating a DB
 ;; ---------------------------------------------------------------------------------------------------
 
+;; PathString -> Database
+;; loads a database
 
+;; String -> Datum
+;; reads and converts a string
+(define-namespace-anchor current)
+(define (string->value str)
+  (parameterize ([current-namespace 
+                  (namespace-anchor->namespace current)])
+    (eval (read (open-input-string str)))))
 
 
 ;; saving a DB
@@ -117,19 +127,12 @@ keys are names of each field
 ;                                          
 ;                                          
 
-(define-namespace-anchor test)
-
-(define (test-string-val str)
-  (parameterize ([current-namespace 
-                  (namespace-anchor->namespace test)])
-    (eval (read (open-input-string str)))))
-
 (define-test-suite --serialize
   ;; serialize
-  (check-equal? (test-string-val (serialize (database "" (make-hash))))
+  (check-equal? (string->value (serialize (database "" (make-hash))))
                 (make-hash (list)))
   
-  (check-equal? (test-string-val (serialize (database
+  (check-equal? (string->value (serialize (database
                                              "" 
                                              (make-hash 
                                               (list 
@@ -141,7 +144,7 @@ keys are names of each field
                   (cons "test"
                         (table '(name id)
                                (vector))))))
-  (check-equal? (test-string-val (serialize (database
+  (check-equal? (string->value (serialize (database
                                              "" 
                                              (make-hash 
                                               (list 
@@ -156,29 +159,29 @@ keys are names of each field
                                (vector (record (make-hash (list (cons 'name "spencer")
                                                                 (cons 'id "000532210"))))))))))
   ;; serialize-table
-  (check-equal? (test-string-val (serialize-table (table '(name id)
+  (check-equal? (string->value (serialize-table (table '(name id)
                                                          (vector))))
                 (table '(name id)
                        (vector)))
-  (check-equal? (test-string-val (serialize-table (table '(name id)
+  (check-equal? (string->value (serialize-table (table '(name id)
                                                          (vector (record (make-hash (list (cons 'name "spencer")
                                                                                           (cons 'id "000532210"))))))))
                 (table '(name id)
                        (vector (record (make-hash (list (cons 'name "spencer")
                                                         (cons 'id "000532210")))))))
   ;; serialize-record
-  (check-equal? (test-string-val (serialize-record (record (make-hash (list (cons 'name "spencer")
+  (check-equal? (string->value (serialize-record (record (make-hash (list (cons 'name "spencer")
                                                                             (cons 'id "000532210"))))))
                 (record (make-hash (list (cons 'name "spencer")
                                          (cons 'id "000532210")))))
   ;; serialize-datum
-  (check-equal? (test-string-val (serialize-datum "spencer"))
+  (check-equal? (string->value (serialize-datum "spencer"))
                 "spencer")
-  (check-equal? (test-string-val (serialize-datum 1223))
+  (check-equal? (string->value (serialize-datum 1223))
                 1223)
-  (check-equal? (test-string-val (serialize-datum #f))
+  (check-equal? (string->value (serialize-datum #f))
                 #f)
-  (check-equal? (test-string-val (serialize-datum 'yes?))
+  (check-equal? (string->value (serialize-datum 'yes?))
                 'yes?)
   )
 
