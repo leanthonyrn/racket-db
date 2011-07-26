@@ -37,6 +37,33 @@ keys are names of each field
 ;                                          
 ;                                          
 ;                                          
+;     ;;;   ;;; ;;; ;;;;;;  ;;;;;   ;;; ;;;
+;    ;   ;   ;   ;   ;   ;   ;   ;   ;   ; 
+;   ;     ;  ;   ;   ; ;     ;   ;    ; ;  
+;   ;     ;  ;   ;   ;;;     ;   ;    ; ;  
+;   ;     ;  ;   ;   ; ;     ;;;;      ;   
+;   ;     ;  ;   ;   ;       ;  ;      ;   
+;    ;   ;   ;   ;   ;   ;   ;   ;     ;   
+;     ;;;     ;;;   ;;;;;;  ;;;   ;   ;;;  
+;     ;;;;;                                
+;                                          
+;                                          
+;                                          
+
+
+;; select
+;; ---------------------------------------------------------------------------------------------------
+
+;; update (insert,delete, create)
+;; ---------------------------------------------------------------------------------------------------
+
+;; join
+;; ---------------------------------------------------------------------------------------------------
+
+;                                          
+;                                          
+;                                          
+;                                          
 ;   ;;; ;;;            ;      ;;           
 ;    ;   ;   ;                 ;           
 ;    ;   ;  ;;;;;    ;;;       ;     ;;;;; 
@@ -54,12 +81,16 @@ keys are names of each field
 ;; ---------------------------------------------------------------------------------------------------
 
 ;; PathString -> Database
+;; creates a new unsaved database
+(define (make-fresh-database path)
+  (database path (make-hash)))
+
+;; PathString -> Database
 ;; loads a database
 (define (load-database path)
   (with-handlers ([exn:fail:filesystem? (λ (e) e)])
-    (let ([in (open-input-file path)])
-      (database path
-                (string->values (port->string in))))))
+    (database path
+              (string->value (port->string (open-input-file path))))))
     
 
 
@@ -133,7 +164,17 @@ keys are names of each field
 ;                                          
 ;                                          
 ;                                          
-
+(define-test-suite --loading
+  ;; string->value
+  (check-equal? (string->value "(cons 1 2)")
+                (cons 1 2))
+  (check-equal? (string->value "1")
+                1)
+  (check-exn exn:fail:read? (λ () (string->value "(cons 1 2")))
+  (check-equal? (string->value "(database \"\" (make-hash))")
+                (database "" (make-hash)))
+  
+  )
 (define-test-suite --serialize
   ;; serialize
   (check-equal? (string->value (serialize (database "" (make-hash))))
@@ -192,4 +233,5 @@ keys are names of each field
                 'yes?)
   )
 
+(run-tests --loading)
 (run-tests --serialize)
