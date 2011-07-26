@@ -1,4 +1,5 @@
 #lang racket
+(require syntax/parse (for-syntax syntax/parse))
 (require rackunit)
 (require rackunit/text-ui)
 (provide (all-defined-out))
@@ -16,12 +17,15 @@ field names in Fields MUST match the field names.
 a Record is a:
 (record [hashof datum])
 keys are names of each field
+
+a Query is a:
+(query [vectorof Record])
 |#
 
 (struct database (name raw) #:transparent)
 (struct table (fields raw) #:transparent)
 (struct record (raw) #:transparent)
-
+(struct query (raw) #:transparent)
 
 ;; macros
 (define-syntax to-string
@@ -33,32 +37,70 @@ keys are names of each field
 
 
 
-;                                          
-;                                          
-;                                          
-;                                          
-;     ;;;   ;;; ;;; ;;;;;;  ;;;;;   ;;; ;;;
-;    ;   ;   ;   ;   ;   ;   ;   ;   ;   ; 
-;   ;     ;  ;   ;   ; ;     ;   ;    ; ;  
-;   ;     ;  ;   ;   ;;;     ;   ;    ; ;  
-;   ;     ;  ;   ;   ; ;     ;;;;      ;   
-;   ;     ;  ;   ;   ;       ;  ;      ;   
-;    ;   ;   ;   ;   ;   ;   ;   ;     ;   
-;     ;;;     ;;;   ;;;;;;  ;;;   ;   ;;;  
-;     ;;;;;                                
-;                                          
-;                                          
-;                                          
 
+;                          
+;                          
+;                          
+;                          
+;     ;;    ;;;;;    ;;;;; 
+;      ;     ;   ;     ;   
+;     ; ;    ;   ;     ;   
+;     ; ;    ;   ;     ;   
+;     ; ;    ;;;;      ;   
+;     ;;;    ;         ;   
+;    ;   ;   ;         ;   
+;   ;;; ;;; ;;;      ;;;;; 
+;                          
+;                          
+;                          
+;                          
+                                       
+
+
+;; query
+;; ---------------------------------------------------------------------------------------------------
+(define-syntax-class whns
+  (pattern (field check)))
+
+
+(define-syntax (query-mac stx)
+  (syntax-parse stx
+   #:literals (select #;join)
+    [(_ db (select (whats ...) from w:whns ...))
+     #'(select db 
+             (list whats ...) 
+             from 
+             (list (λ (r) (w.check (hash-ref (record-raw r) w.field)))... ))]))
 
 ;; select
-;; ---------------------------------------------------------------------------------------------------
+
+;; Database [Listof fieldnames] tablename [Listof [Record -> Any]] -> Query
+;; queries the DB for selected info
+(define (select db whats from whens)
+  (define tbl (hash-ref from (database-raw db)))
+  (query
+   (for/vector ([rcrd (table-raw tbl)]
+                #:when (for/and ([f whens])
+                         (f rcrd)))
+     (record 
+      (make-hash (for/list ([(key val) (record-raw rcrd)]
+                            #:when (member key whats))
+                   (cons key val)))))))
+
+;; Database [Listof Tablenames] Fieldname [Listof [Record -> Any]] -> Query
+#;(define (join db froms on whens)
+  (query 
+   (for/vector ())))
+
 
 ;; update (insert,delete, create)
 ;; ---------------------------------------------------------------------------------------------------
 
-;; join
-;; ---------------------------------------------------------------------------------------------------
+;; insert
+
+;; delete
+
+;; create
 
 ;                                          
 ;                                          
