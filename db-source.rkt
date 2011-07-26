@@ -55,6 +55,13 @@ keys are names of each field
 
 ;; PathString -> Database
 ;; loads a database
+(define (load-database path)
+  (with-handlers ([exn:fail:filesystem? (λ (e) e)])
+    (let ([in (open-input-file path)])
+      (database path
+                (string->values (port->string in))))))
+    
+
 
 ;; String -> Datum
 ;; reads and converts a string
