@@ -56,7 +56,7 @@ a Query is a:
 ;                          
 ;                          
 ;                          
-                                       
+
 
 
 ;; query
@@ -79,8 +79,8 @@ a Query is a:
   (define tbl (hash-ref from (database-raw db)))
   (query
    (for/list ([rcrd (table-raw tbl)]
-                #:when (for/and ([f whens])
-                         (f rcrd)))
+              #:when (for/and ([f whens])
+                       (f rcrd)))
      (record 
       (make-hash (for/list ([(key val) (record-raw rcrd)]
                             #:when (or (empty? whats (member key whats))))
@@ -93,22 +93,22 @@ a Query is a:
   (define v2 (table-raw (hash-ref (database-raw db) from2)))
   
   (query (for*/list ([r1 v1]
-                       [r2 v2]
-                       #:when (and (equal? (hash-ref (record-raw r1) on) (hash-ref (record-raw r2) on))
-                                   (for/and ([f whens])
-                                     (and (f r1)
-                                          (f r2)))))
+                     [r2 v2]
+                     #:when (and (equal? (hash-ref (record-raw r1) on) (hash-ref (record-raw r2) on))
+                                 (for/and ([f whens])
+                                   (and (f r1)
+                                        (f r2)))))
            (let ([r2/1 (hash-copy (record-raw r2))])
              (hash-remove! r2/1 on)
-           (record (hash!-append (record-raw r1) r2/1))))))
-                      
+             (record (hash!-append (record-raw r1) r2/1))))))
+
 ;; hash hash -> hash
 ;; appends two hashes
 (define (hash!-append h1 h2)
   (define ret (hash-copy h1))
   (for ([(key val) h2])
     (hash-set! ret key val)))
-  
+
 ;; effect (insert,delete, create)
 ;; ---------------------------------------------------------------------------------------------------
 
@@ -130,10 +130,10 @@ a Query is a:
   (let* ([tbl (hash-ref (database-raw db) tbl)]
          [l (table-raw tbl)])
     (set-table-raw! tbl
-                     (cons
-                      (record (make-hash (for/list ([fname (table-fields tbl)]
-                                                    [v values])
-                                           (cons fname v)))) l))))
+                    (cons
+                     (record (make-hash (for/list ([fname (table-fields tbl)]
+                                                   [v values])
+                                          (cons fname v)))) l))))
 
 ;; delete
 
@@ -177,7 +177,7 @@ a Query is a:
   (with-handlers ([exn:fail:filesystem? (λ (e) e)])
     (database path
               (string->value (port->string (open-input-file path))))))
-    
+
 
 
 ;; String -> Datum
@@ -214,7 +214,7 @@ a Query is a:
   (to-string 
    `(table "'",(table-fields tbl)
            "(list",@(for/list ([rec (table-raw tbl)])
-                       (serialize-record rec))")")))
+                      (serialize-record rec))")")))
 
 ;; record -> string
 ;; converts the record to a string that when used as the arg to (eval (read (string->port str))) would result in the same raw record
@@ -301,45 +301,45 @@ a Query is a:
                 (make-hash (list)))
   
   (check-equal? (string->value (serialize (database
-                                             "" 
-                                             (make-hash 
-                                              (list 
-                                               (cons "test"
-                                                     (table '(name id)
-                                                            (list))))))))
+                                           "" 
+                                           (make-hash 
+                                            (list 
+                                             (cons "test"
+                                                   (table '(name id)
+                                                          (list))))))))
                 (make-hash 
                  (list 
                   (cons "test"
                         (table '(name id)
                                (list))))))
   (check-equal? (string->value (serialize (database
-                                             "" 
-                                             (make-hash 
-                                              (list 
-                                               (cons "test"
-                                                     (table '(name id)
-                                                            (list (record (make-hash (list (cons 'name "spencer")
-                                                                                             (cons 'id "000532210"))))))))))))
+                                           "" 
+                                           (make-hash 
+                                            (list 
+                                             (cons "test"
+                                                   (table '(name id)
+                                                          (list (record (make-hash (list (cons 'name "spencer")
+                                                                                         (cons 'id "000532210"))))))))))))
                 (make-hash 
                  (list 
                   (cons "test"
                         (table '(name id)
                                (list (record (make-hash (list (cons 'name "spencer")
-                                                                (cons 'id "000532210"))))))))))
+                                                              (cons 'id "000532210"))))))))))
   ;; serialize-table
   (check-equal? (string->value (serialize-table (table '(name id)
-                                                         (list))))
+                                                       (list))))
                 (table '(name id)
                        (list)))
   (check-equal? (string->value (serialize-table (table '(name id)
-                                                         (list (record (make-hash (list (cons 'name "spencer")
-                                                                                          (cons 'id "000532210"))))))))
+                                                       (list (record (make-hash (list (cons 'name "spencer")
+                                                                                      (cons 'id "000532210"))))))))
                 (table '(name id)
                        (list (record (make-hash (list (cons 'name "spencer")
-                                                        (cons 'id "000532210")))))))
+                                                      (cons 'id "000532210")))))))
   ;; serialize-record
   (check-equal? (string->value (serialize-record (record (make-hash (list (cons 'name "spencer")
-                                                                            (cons 'id "000532210"))))))
+                                                                          (cons 'id "000532210"))))))
                 (record (make-hash (list (cons 'name "spencer")
                                          (cons 'id "000532210")))))
   ;; serialize-datum
