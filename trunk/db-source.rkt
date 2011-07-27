@@ -1,7 +1,9 @@
 #lang racket
-(require syntax/parse (for-syntax syntax/parse))
+(require (for-syntax syntax/parse))
 (require rackunit)
 (require rackunit/text-ui)
+(require "hash-remaps.rkt")
+(require (for-syntax "stx-classes.rkt"))
 (provide (all-defined-out))
 #|
 A Database is a: 
@@ -59,18 +61,17 @@ a Query is a:
 
 ;; query
 ;; ---------------------------------------------------------------------------------------------------
-(define-syntax-class whns
-  (pattern (field check)))
-
 
 (define-syntax (query-mac stx)
   (syntax-parse stx
-   #:literals (select #;join)
+    #:literals (select join)
     [(_ db (select (whats ...) from w:whns ...))
      #'(select db 
-             (list whats ...) 
-             from 
-             (list (λ (r) (w.check (hash-ref (record-raw r) w.field)))... ))]))
+               (list whats ...) 
+               from 
+               (list (λ (r) (w.check (hash-ref (record-raw r) w.field)))... ))]
+    [(_ db (join (from1 from2) in w:whns ...))
+     #'(join db from1 from1 in (list w:whns))]))
 
 ;; select
 
@@ -84,24 +85,58 @@ a Query is a:
                          (f rcrd)))
      (record 
       (make-hash (for/list ([(key val) (record-raw rcrd)]
-                            #:when (member key whats))
+                            #:when (or (empty? whats (member key whats))))
                    (cons key val)))))))
 
 ;; Database [Listof Tablenames] Fieldname [Listof [Record -> Any]] -> Query
-#;(define (join db froms on whens)
-  (query 
-   (for/vector ())))
+;; joins two tables in the DB
+(define (join db from1 from2 on whens)
+  (define v1 (table-raw (hash-ref (database-raw db) from1)))
+  (define v2 (table-raw (hash-ref (database-raw db) from2)))
+  
+  (query (for*/vector ([r1 v1]
+                       [r2 v2]
+                       #:when (and (equal? (hash-ref (record-raw r1) on) (hash-ref (record-raw r2) on))
+                                   (for/and ([f whens])
+                                     (f r1)
+                                     (f r2))))
+           (let ([r2.1 (hash-copy (record-raw r2))])
+             (hash-remove! r2.1 on)
+           (record (hash!-append (record-raw r1) r2.1))))))
+                      
+;; hash hash -> hash
+;; appends two hashes
+(define (hash!-append h1 h2)
+  (define ret (hash-copy h1))
+  (for ([(key val) h2])
+    (hash-set! ret key val)))
+  
 
 
 ;; update (insert,delete, create)
 ;; ---------------------------------------------------------------------------------------------------
+(define-syntax (effect stx)
+  (syntax-parse stx
+    #:literals (#;insert #;delete create drop #;update)
+    [(_ db (create name (fields ...)))
+     #'(create db name (list fields ...))]
+    [(_ db (drop table))
+     #'(drop db table)]))
+;; update
 
 ;; insert
 
 ;; delete
 
-;; create
+;; Database TableName [listof symbols] -> (void)
+;; creates a new table in db with the corresponding tables
+(define (create db tbl-name fields)
+  (hash-set! (database-raw db) tbl-name (table fields (vector))))
 
+;; Database TableName -> (void)
+;; drops the given table
+(define (drop db tbl-name)
+  (hash-remove! (database-raw db) tbl-name))
 ;                                          
 ;                                          
 ;                                          
@@ -124,7 +159,7 @@ a Query is a:
 
 ;; PathString -> Database
 ;; creates a new unsaved database
-(define (make-fresh-database path)
+(define (make-empty-database path)
   (database path (make-hash)))
 
 ;; PathString -> Database
@@ -205,7 +240,25 @@ a Query is a:
 ;                                          
 ;                                          
 ;                                          
-;                                          
+;                  
+(define-test-suite --effecting
+  ;; create
+  (let ([db (make-empty-database "")])
+    (create db 'test '(oh hai there))
+    (check-equal? db (database "" (make-hash (list (cons 'test (table '(oh hai there) (vector))))))))
+  (let ([db (make-empty-database "")])
+    (effect db (create 'test ('oh 'hai 'there)))
+    (check-equal? db (database "" (make-hash (list (cons 'test (table '(oh hai there) (vector))))))))
+  ;; drop
+  (let ([db (make-empty-database "")])
+    (create db 'test '(oh hai there))
+    (drop db 'test)
+    (check-equal? db (make-empty-database "")))
+  (let ([db (make-empty-database "")])
+    (create db 'test '(oh hai there))
+    (effect db (drop 'test))
+    (check-equal? db (make-empty-database "")))
+  )
 (define-test-suite --loading
   ;; string->value
   (check-equal? (string->value "(cons 1 2)")
@@ -275,5 +328,6 @@ a Query is a:
                 'yes?)
   )
 
+(run-tests --effecting)
 (run-tests --loading)
 (run-tests --serialize)
