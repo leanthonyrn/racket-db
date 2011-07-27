@@ -71,7 +71,10 @@ a Query is a:
                from 
                (list (λ (r) (w.check (hash-ref (record-raw r) w.field))) ...))]
     [(_ db (join (from1 from2) in w:whns ...))
-     #'(join db from1 from1 in (list (λ (r) (w.check (hash-ref (record-raw r) w.field))) ...))]))
+     #'(join db
+             from1 from1
+             in 
+             (list (λ (r) (w.check (hash-ref (record-raw r) w.field))) ...))]))
 
 ;; Database [Listof fieldnames] tablename [Listof [Record -> Any]] -> Query
 ;; queries the DB for selected info
