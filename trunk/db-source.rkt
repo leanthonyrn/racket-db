@@ -69,9 +69,9 @@ a Query is a:
      #'(select db 
                (list whats ...) 
                from 
-               (list (λ (r) (w.check (hash-ref (record-raw r) w.field)))... ))]
+               (list (λ (r) (w.check (hash-ref (record-raw r) w.field))) ...))]
     [(_ db (join (from1 from2) in w:whns ...))
-     #'(join db from1 from1 in (list w:whns))]))
+     #'(join db from1 from1 in (list (λ (r) (w.check (hash-ref (record-raw r) w.field))) ...))]))
 
 ;; select
 
@@ -111,9 +111,7 @@ a Query is a:
   (for ([(key val) h2])
     (hash-set! ret key val)))
   
-
-
-;; update (insert,delete, create)
+;; effect (insert,delete, create)
 ;; ---------------------------------------------------------------------------------------------------
 (define-syntax (effect stx)
   (syntax-parse stx
@@ -122,6 +120,7 @@ a Query is a:
      #'(create db name (list fields ...))]
     [(_ db (drop table))
      #'(drop db table)]))
+
 ;; update
 
 ;; insert
