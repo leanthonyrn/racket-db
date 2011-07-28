@@ -1,33 +1,14 @@
 #lang racket
-(require (for-syntax syntax/parse))
+(require syntax/parse (for-syntax syntax/parse))
 (require rackunit)
 (require rackunit/text-ui)
 (require "hash-remaps.rkt")
+(require "db-data.rkt")
 (require (for-syntax "stx-classes.rkt"))
 (provide (all-defined-out))
-#|
-A Database is a: 
-(database PathString [hashof Table])
-with keys representing name of the table
 
-A Table is a:
-(table [listof Symbol]
-       [listof Record]))
-with the symbols being field names
-field names in Fields MUST match the field names. 
+(define-namespace-anchor current)
 
-a Record is a:
-(record [hashof datum])
-keys are names of each field
-
-a Query is a:
-(query [listof Record])
-|#
-
-(struct database (name raw) #:transparent)
-(struct table (fields [raw #:mutable]) #:transparent)
-(struct record (raw) #:transparent)
-(struct query (raw) #:transparent)
 
 ;; macros
 (define-syntax to-string
@@ -36,8 +17,6 @@ a Query is a:
      (with-output-to-string
       (λ ()
         (display vals) ...))]))
-
-
 
 
 ;                          
@@ -65,42 +44,50 @@ a Query is a:
 (define-syntax (query-mac stx)
   (syntax-parse stx
     #:literals (select join)
-    [(_ db (select (whats ...) from w:whns ...))
+    [(_ db (select (whats ...) from))
      #'(select db 
                (list whats ...) 
                from 
-               (list (λ (r) (w.check (hash-ref (record-raw r) w.field))) ...))]
-    [(_ db (join (from1 from2) in w:whns ...))
+               (const #t))]
+    [(_ db (select (whats ...) from w:whn))
+     #'(select db 
+               (list whats ...) 
+               from 
+               w.func)]
+    [(_ db (join (from1 from2) in))
      #'(join db
              from1 from1
              in 
-             (list (λ (r) (w.check (hash-ref (record-raw r) w.field))) ...))]))
+             (const #t))]
+    [(_ db (join (from1 from2) in w:whn))
+     #'(join db
+             from1 from1
+             in 
+             (attribute w.func))]))
 
-;; Database [Listof fieldnames] tablename [Listof [Record -> Any]] -> Query
+;; Database [Listof fieldnames] tablename [Record -> Any] -> Query
 ;; queries the DB for selected info
-(define (select db whats from whens)
-  (define tbl (hash-ref from (database-raw db)))
+(define (select db whats from when)
+  (define tbl (hash-ref (database-raw db) from))
   (query
    (for/list ([rcrd (table-raw tbl)]
-              #:when (for/and ([f whens])
-                       (f rcrd)))
+              #:when (when rcrd))
      (record 
       (make-hash (for/list ([(key val) (record-raw rcrd)]
-                            #:when (or (empty? whats (member key whats))))
+                            #:when (or (empty? whats) (member key whats)))
                    (cons key val)))))))
 
-;; Database [Listof Tablenames] Fieldname [Listof [Record -> Any]] -> Query
+;; Database [Listof Tablenames] Fieldname [Record -> Any] -> Query
 ;; joins two tables in the DB
-(define (join db from1 from2 on whens)
+(define (join db from1 from2 on when)
   (define v1 (table-raw (hash-ref (database-raw db) from1)))
   (define v2 (table-raw (hash-ref (database-raw db) from2)))
   
   (query (for*/list ([r1 v1]
                      [r2 v2]
                      #:when (and (equal? (hash-ref (record-raw r1) on) (hash-ref (record-raw r2) on))
-                                 (for/and ([f whens])
-                                   (and (f r1)
-                                        (f r2)))))
+                                   (and (when r1)
+                                        (when r2))))
            (let ([r2/1 (hash-copy (record-raw r2))])
              (hash-remove! r2/1 on)
              (record (hash!-append (record-raw r1) r2/1))))))
@@ -185,7 +172,6 @@ a Query is a:
 
 ;; String -> Datum
 ;; reads and converts a string
-(define-namespace-anchor current)
 (define (string->value str)
   (parameterize ([current-namespace 
                   (namespace-anchor->namespace current)])
@@ -253,7 +239,39 @@ a Query is a:
 ;                                          
 ;                                          
 ;          
+(define queryable (make-empty-database ""))
+(effect queryable (create 'test1 ('a 'b)))
+(effect queryable (insert (1 'me) 'test1))
+(effect queryable (insert (2 'you) 'test1))
+(effect queryable (insert (3 'you) 'test1))
+(effect queryable (insert (4 'me) 'test1))
+(effect queryable (create 'test2 ('a 'c)))
+(effect queryable (insert (1 'you) 'test2))
+(effect queryable (insert (2 'me) 'test2))
+(effect queryable (insert (3 'me) 'test2))
+(effect queryable (insert (4 'you) 'test2))
+
 (define-test-suite --querying
+  ;; select
+  (check-equal? (select queryable '() 'test1 (const #t))
+                (query (table-raw (hash-ref (database-raw queryable) 'test1))))
+  (check-equal? (query-mac queryable (select () 'test1))
+                (query (table-raw (hash-ref (database-raw queryable) 'test1))))
+  (check-equal? (select queryable '(a) 'test1 (const #t))
+                (query (list (record (make-hash (list (cons 'a 4))))
+                             (record (make-hash (list (cons 'a 3))))
+                             (record (make-hash (list (cons 'a 2))))
+                             (record (make-hash (list (cons 'a 1)))))))
+  (check-equal? (query-mac queryable (select ('a) 'test1))
+                (query (list (record (make-hash (list (cons 'a 4))))
+                             (record (make-hash (list (cons 'a 3))))
+                             (record (make-hash (list (cons 'a 2))))
+                             (record (make-hash (list (cons 'a 1)))))))
+  (check-equal? (select queryable '(a) 'test1 (λ (r) (= (hash-ref (record-raw r) 'a) 4)))
+                (query (list (record (make-hash (list (cons 'a 4)))))))
+  (check-equal? (query-mac queryable (select ('a) 'test1 ('a (λ (a) (= a 4)))))
+                (query (list (record (make-hash (list (cons 'a 4)))))))
+  
   )
 (define-test-suite --effecting
   ;; create
